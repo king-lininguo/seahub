@@ -41,6 +41,7 @@ def get_account_info(user):
     info['is_active'] = user.is_active
     info['create_time'] = user.ctime
     info['login_id'] = profile.login_id if profile else ''
+    info['addressbook_opt_in'] = profile.addressbook_opt_in if profile else False
     info['total'] = seafile_api.get_user_quota(email)
     info['usage'] = seafile_api.get_user_self_usage(email)
 
@@ -104,13 +105,23 @@ class Account(APIView):
 
     def _update_account_additional_info(self, request, email):
 
-        # update account profile
+        # update account name
         name = request.data.get("name", None)
         if name is not None:
             profile = Profile.objects.get_profile_by_user(email)
             if profile is None:
                 profile = Profile(user=email)
             profile.nickname = name
+            profile.save()
+
+        # update account addressbook_opt_in
+        addressbook_opt_in = request.data.get("addressbook_opt_in", None)
+        if addressbook_opt_in is not None:
+            profile = Profile.objects.get_profile_by_user(email)
+            if profile is None:
+                profile = Profile(user=email)
+
+            profile.addressbook_opt_in = addressbook_opt_in == 'true'
             profile.save()
 
         # update account loginid
@@ -174,6 +185,12 @@ class Account(APIView):
             if "/" in name:
                 return api_error(status.HTTP_400_BAD_REQUEST,
                         _(u"Name should not include '/'."))
+
+        # argument check for addressbook_opt_in
+        addressbook_opt_in = request.data.get("addressbook_opt_in", None)
+        if addressbook_opt_in not in ('true', 'false'):
+            return api_error(status.HTTP_400_BAD_REQUEST,
+                    'addressbook_opt_in invalid')
 
         #argument check for loginid
         loginid = request.data.get("login_id", None)

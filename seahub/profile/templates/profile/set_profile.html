@@ -75,6 +75,20 @@
     </form>
 </div>
 
+{% if ENABLE_ADDRESSBOOK_OPT_IN %}
+<div class="setting-item" id="addressbook-opt-in">
+    <h3>{% trans "Address Book Option In" %}</h3>
+    <form id="addressbook-opt-in-form" method="post" action="">{% csrf_token %}
+        {% if form.data.addressbook_opt_in %}
+        <input type="checkbox" name="addressbook_opt_in" checked="checked">
+        {% else %}
+        <input type="checkbox" name="addressbook_opt_in">
+        {% endif %}
+        <label for="addressbook_opt_in">address book option in</label>
+    </form>
+</div>
+{% endif %}
+
 <div class="setting-item" id="lang-setting">
     <h3>{% trans "Language Setting" %}</h3>
     <a href="#" id="lang-context" data-lang="{{ LANGUAGE_CODE }}">{{ LANGUAGE_CODE|language_name_local }} <span class="icon-caret-down"></span></a>
@@ -116,7 +130,7 @@
     <p><a class="sf-btn-link" href="{% url 'two_factor:disable' %}">
         {% trans "Disable Two-Factor Authentication" %}</a>
     </p>
-    
+
     <p class="txt-before-btn">
       {% blocktrans %}If you don't have any device with you, you can access your account using backup codes.{% endblocktrans %}
       {% blocktrans count counter=backup_tokens %}You have only one backup code remaining.{% plural %}You have {{ counter }} backup codes remaining.{% endblocktrans %}
@@ -191,6 +205,32 @@ $('#default-lib-form').submit(function() {
         $('.error', $(this)).removeClass('hide');
         return false;
     }
+});
+{% endif %}
+
+{% if ENABLE_ADDRESSBOOK_OPT_IN %}
+$("#addressbook-opt-in input[type='checkbox']").change(function() {
+    var _this = $(this), data = {};
+
+    if (_this.prop('checked')) {
+        data['addressbook_opt_in'] = 'true';
+    } else {
+        data['addressbook_opt_in'] = 'false';
+    }
+
+    $.ajax({
+        url: "{% url 'api2-account' request.user.username %}",
+        type: 'PUT',
+        dataType: 'json',
+        cache: false,
+        beforeSend: prepareCSRFToken,
+        data: data,
+        success: function(data) {
+            _this.attr('checked', data['addressbook_opt_in']);
+            feedback("{% trans "Success" %}", 'success');
+        },
+        error: ajaxErrorHandler
+    });
 });
 {% endif %}
 

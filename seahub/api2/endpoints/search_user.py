@@ -1,11 +1,9 @@
 # Copyright (c) 2012-2016 Seafile Ltd.
-import json
-
 from django.db.models import Q
-from django.http import HttpResponse
 
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 
@@ -16,13 +14,14 @@ from seahub.api2.throttling import UserRateThrottle
 from seahub.api2.utils import api_error
 from seahub.utils import is_valid_email, is_org_context
 from seahub.base.accounts import User
-from seahub.base.templatetags.seahub_tags import email2nickname
+from seahub.base.templatetags.seahub_tags import email2nickname, \
+        email2contact_email
 from seahub.profile.models import Profile
 from seahub.contacts.models import Contact
 from seahub.avatar.templatetags.avatar_tags import api_avatar_url
 
 from seahub.settings import ENABLE_GLOBAL_ADDRESSBOOK, \
-    ENABLE_SEARCH_FROM_LDAP_DIRECTLY
+    ENABLE_SEARCH_FROM_LDAP_DIRECTLY, ENABLE_ADDRESSBOOK_OPT_IN
 
 try:
     from seahub.settings import CLOUD_MODE
@@ -89,7 +88,8 @@ class SearchUser(APIView):
             # search user from user's contacts
             email_list += search_user_when_global_address_book_disabled(request, q)
 
-        ## search finished
+        ## search finished, now filter out some users
+
         # remove duplicate emails
         email_list = {}.fromkeys(email_list).keys()
 
@@ -102,6 +102,16 @@ class SearchUser(APIView):
                     email_result.append(email)
             except User.DoesNotExist:
                 continue
+
+        print email_list
+        if ENABLE_ADDRESSBOOK_OPT_IN:
+            # remove user whose `addressbook_opt_in` value is True
+            filter_out_users = Profile.objects.filter(addressbook_opt_in=True).values('user')
+            for filter_out_user in filter_out_users:
+                if filter_out_user['user'] in email_list:
+                    email_list.remove(filter_out_user['user'])
+
+        print email_list
 
         # check if include myself in user result
         try:
@@ -122,8 +132,7 @@ class SearchUser(APIView):
         formated_result = format_searched_user_result(
                 request, email_result[:10], size)
 
-        return HttpResponse(json.dumps({"users": formated_result}),
-                status=200, content_type='application/json; charset=utf-8')
+        return Response({"users": formated_result})
 
 def format_searched_user_result(request, users, size):
     results = []
@@ -134,7 +143,7 @@ def format_searched_user_result(request, users, size):
             "email": email,
             "avatar_url": request.build_absolute_uri(url),
             "name": email2nickname(email),
-            "contact_email": Profile.objects.get_contact_email_by_user(email),
+            "contact_email": email2contact_email(email),
         })
 
     return results
