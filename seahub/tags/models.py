@@ -133,16 +133,28 @@ class FileTagManager(models.Manager):
         except Exception as e:
             return False
 
-    def del_all_filetag_by_uuid(self, uuid_id):
+    def delete_all_filetag_by_path(self, repo_id, parent_path, filename, is_dir):
         """ delete all filetag
             args:
-            - `uuid_id`:id of  uuid in filemap
+            - `repo_id`: 
+            - `parent_path`
+            - `filename`
+            - `is_dir`
             return:
                 always return True
         """
-        filetags = super(FileTagManager, self).filter(uuid=uuid_id)
-        for filetag in filetags:
-            filetag.delete()
+        filetags = super(FileTagManager, self).filter(
+                uuid__repo_id=repo_id,
+                uuid__parent_path=parent_path,
+                uuid__filename=filename,
+                uuid__is_dir=is_dir
+        )
+        try:
+            for filetag in filetags:
+                filetag.delete()
+            return True
+        except:
+            return False
 
 ########## Model
 class FileUUIDMap(models.Model):

@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 
 from rest_framework import status
@@ -89,6 +90,9 @@ def check_parameter(func):
         return func(view, request, *args, **kwargs)
     return _decorated
 
+def check_tagname(tagname):
+    return True if re.match('^[\w-]+$', tagname, re.U) else False
+
 class FileTagsView(APIView):
     authentication_classes = (TokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated, )
@@ -105,22 +109,30 @@ class FileTagsView(APIView):
 
     @check_parameter
     def post(self, request, repo_id, parent_path, filename, is_dir):
-        name = request.POST.get('name', None)
-        if not name or '/' in name:
-            error_msg = "Tag name %s invalid." % name
+        names = request.POST.get('names', None)
+        if names is None:
+            error_msg = "Tag names can not be empty"
             return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
-        tag_obj, created = FileTag.objects.get_or_create_file_tag(
-                repo_id,
-                parent_path,
-                filename,
-                is_dir,
-                name,
-                request.user.username
-                )
-        if created:
-            return Response(tag_obj.to_dict(), status=status.HTTP_201_CREATED)
-        else:
-            return Response(tag_obj.to_dict(), status=status.HTTP_200_OK)
+
+        if names.strip() == "":
+            FileTag.objects.delete_all_filetag_by_path(repo_id, parent_path,
+                    filename,is_dir,)
+            return Response()
+
+        name_list = [name.strip() for name in names.split(",") if name.strip()]
+        for name in name_list:
+            if not check_tagname(name):
+                error_msg = "Tag names %s invalid." % names
+                return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
+
+        res_tag_list = []
+        for name in name_list:
+            tag_obj, created = FileTag.objects.get_or_create_file_tag(
+                    repo_id, parent_path, filename, is_dir, name,
+                    request.user.username
+            )
+            res_tag_list.append(tag_obj.to_dict())
+        return Response({"tags": res_tag_list}, status=status.HTTP_200_OK)
 
 class FileTagView(APIView):
     authentication_classes = (TokenAuthentication, SessionAuthentication)
@@ -129,7 +141,7 @@ class FileTagView(APIView):
 
     @check_parameter
     def delete(self, request, repo_id, parent_path, filename, name, is_dir):
-        if not name or '/' in name:
+        if not name or not check_tagname(name):
             error_msg = "Tag name %s invalid." % name
             return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
         if FileTag.objects.delete_file_tag_by_path(repo_id,
