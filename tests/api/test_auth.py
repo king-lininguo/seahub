@@ -8,6 +8,8 @@ import time
 import requests
 import pytest
 
+from django.core.urlresolvers import reverse
+
 from tests.common.common import USERNAME, PASSWORD, BASE_URL, SEAFILE_BASE_URL
 from tests.common.utils import randstring, urljoin
 from tests.api.urls import (
@@ -15,6 +17,10 @@ from tests.api.urls import (
     CLIENT_LOGIN_TOKEN_URL
 )
 from tests.api.apitestbase import ApiTestBase
+from seahub.test_utils import BaseTestCase
+from seahub_extra.two_factor import devices_for_user
+from seahub_extra.two_factor.models import (StaticDevice, TOTPDevice,
+                                            PhoneDevice)
 
 if not BASE_URL.endswith('/'):
     BASE_URL = BASE_URL + '/'
@@ -115,6 +121,33 @@ class AuthTest(ApiTestBase):
 
     def _get_client_login_url(self, admin=False):
         post = self.admin_post if admin else self.post
+        print CLIENT_LOGIN_TOKEN_URL
+        print CLIENT_LOGIN_TOKEN_URL
+        print CLIENT_LOGIN_TOKEN_URL
         token = post(CLIENT_LOGIN_TOKEN_URL).json()['token']
         assert len(token) == 32
+        print urljoin(BASE_URL, 'client-login/') + '?token=' + token
+        print urljoin(BASE_URL, 'client-login/') + '?token=' + token
         return urljoin(BASE_URL, 'client-login/') + '?token=' + token
+
+class TwoFactorAuthViewTest(BaseTestCase):
+    def setUp(self):
+        self.login_as(self.admin)
+
+    def test_can_disable_two_factor_auth(self):
+        totp = TOTPDevice(user=self.admin, name="", confirmed=1)
+        totp.save()
+
+        devices = devices_for_user(self.admin)
+        i = 0
+        for device in devices_for_user(self.admin):
+            if device:
+                i+=1
+        assert i == 1
+        resp = self.client.post(reverse('two-factor-auth-view'))
+        assert resp.status_code == 200
+        i = 0
+        for device in devices_for_user(self.admin):
+            if device:
+                i+=1
+        assert i == 0

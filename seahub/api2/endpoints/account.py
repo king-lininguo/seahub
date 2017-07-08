@@ -219,6 +219,12 @@ class Account(APIView):
                     return api_error(status.HTTP_400_BAD_REQUEST, \
                             _(u'Failed to set quota: maximum quota is %d MB' % org_quota_mb))
 
+        # argument check for two factor auth
+        two_factor_auth = request.data.get("two_factor_auth", None)
+        if two_factor_auth is not None:
+            pass
+            
+
         # argument check for is_trial
         is_trial = request.data.get("is_trial", None)
         if is_trial is not None:
